@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Sales Agent AI</title>
+  <style>
+    :root {
+      --bg:      #0d1117;
+      --surface: #161b22;
+      --border:  #30363d;
+      --accent:  #58a6ff;
+      --green:   #3fb950;
+      --red:     #f85149;
+      --yellow:  #d29922;
+      --text:    #e6edf3;
+      --dim:     #8b949e;
+      --hot:     #ff4444;
+      --warm:    #ffaa00;
+      --radius:  12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 15px;
+      padding: 0 0 80px 0;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px;
+      text-align: center;
+      position: sticky; top: 0; z-index: 100;
+    }
+    header h1 { font-size: 18px; color: var(--accent); }
+    header p  { font-size: 12px; color: var(--dim); margin-top: 2px; }
+
+    /* ── API key warning ── */
+    .warning {
+      background: #3d2200;
+      border: 1px solid var(--yellow);
+      color: var(--yellow);
+      padding: 12px 16px;
+      margin: 12px;
+      border-radius: var(--radius);
+      font-size: 13px;
+    }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      display: flex;
+      gap: 8px;
+      padding: 12px;
+      overflow-x: auto;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      text-align: center;
+      min-width: 80px;
+      flex-shrink: 0;
+    }
+    .stat-card .val { font-size: 22px; font-weight: bold; }
+    .stat-card .lbl { font-size: 11px; color: var(--dim); margin-top: 2px; }
+    .stat-card.hot  .val { color: var(--hot); }
+    .stat-card.warm .val { color: var(--warm); }
+    .stat-card.blue .val { color: var(--accent); }
+
+    /* ── Section ── */
+    .section {
+      margin: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .section-title {
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,.02);
+    }
+
+    /* ── Action form ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      padding: 14px;
+    }
+    .form-grid select, .form-grid input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      -webkit-appearance: none;
+    }
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 0 14px 14px;
+    }
+    .btn {
+      flex: 1;
+      min-width: 120px;
+      padding: 12px 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn:active { opacity: .7; }
+    .btn-primary  { background: var(--accent); color: #000; }
+    .btn-secondary{ background: #21262d; color: var(--text); border: 1px solid var(--border); }
+    .btn-score    { background: var(--green); color: #000; }
+    .btn-export   { background: #6e40c9; color: #fff; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ── Log console ── */
+    #log-box {
+      display: none;
+      background: #0d1117;
+      border-top: 1px solid var(--border);
+      padding: 12px 14px;
+      font-family: "SF Mono", monospace;
+      font-size: 12px;
+      color: var(--green);
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    #log-box.visible { display: block; }
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .filter-bar select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      min-width: 100px;
+    }
+    .filter-bar .btn {
+      min-width: 80px;
+      flex: 0;
+      padding: 7px 14px;
+      font-size: 13px;
+    }
+
+    /* ── Leads list ── */
+    #leads-container { padding: 8px; }
+    .lead-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      position: relative;
+    }
+    .lead-card.hot  { border-left: 3px solid var(--hot); }
+    .lead-card.warm { border-left: 3px solid var(--warm); }
+    .lead-card.cold { border-left: 3px solid var(--border); }
+
+    .lead-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .lead-name   { font-weight: 700; font-size: 15px; flex: 1; padding-right: 8px; }
+    .score-badge {
+      font-size: 18px;
+      font-weight: 800;
+      min-width: 42px;
+      text-align: right;
+    }
+    .score-badge.hot  { color: var(--hot); }
+    .score-badge.warm { color: var(--warm); }
+    .score-badge.cold { color: var(--dim); }
+
+    .lead-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .tag {
+      background: rgba(88,166,255,.12);
+      color: var(--accent);
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 12px;
+    }
+    .tag.sector { background: rgba(63,185,80,.1); color: var(--green); }
+    .tag.roles  { background: rgba(240,136,62,.1); color: #f0883e; }
+
+    .lead-pitch {
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--dim);
+      font-style: italic;
+      line-height: 1.4;
+    }
+    .lead-contact {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--accent);
+    }
+    .lead-scores {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--dim);
+    }
+    .lead-scores span b { color: var(--text); }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--dim);
+    }
+    .empty-state .icon { font-size: 40px; margin-bottom: 8px; }
+
+    /* ── Bottom nav ── */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+    }
+    .nav-item {
+      flex: 1;
+      padding: 10px 4px;
+      text-align: center;
+      cursor: pointer;
+      font-size: 10px;
+      color: var(--dim);
+      transition: color .15s;
+    }
+    .nav-item.active { color: var(--accent); }
+    .nav-item .icon { font-size: 22px; display: block; }
+
+    .page { display: none; }
+    .page.active { display: block; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Sales Agent AI</h1>
+  <p>Recrutare muncitori non-UE | Romania</p>
+</header>
+
+{% if not api_key_set %}
+<div class="warning">
+  ⚠️ <strong>ANTHROPIC_API_KEY</strong> nu este setat!
+  Seteaza cheia in fisierul <code>.env</code> pentru a putea rula agentul AI.
+</div>
+{% endif %}
+
+<!-- ── PAGE: Dashboard ── -->
+<div id="page-home" class="page active">
+
+  <div class="stats-bar">
+    <div class="stat-card hot">
+      <div class="val">{{ stats.hot_leads }}</div>
+      <div class="lbl">HOT</div>
+    </div>
+    <div class="stat-card warm">
+      <div class="val">{{ stats.warm_leads }}</div>
+      <div class="lbl">WARM</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="val">{{ stats.total_leads }}</div>
+      <div class="lbl">Total</div>
+    </div>
+    <div class="stat-card">
+      <div class="val" style="color:var(--green)">{{ stats.total_companies }}</div>
+      <div class="lbl">Companii</div>
+    </div>
+    <div class="stat-card">
+      <div class="val" style="color:var(--dim)">{{ stats.total_postings }}</div>
+      <div class="lbl">Anunturi</div>
+    </div>
+  </div>
+
+  <!-- Action Panel -->
+  <div class="section">
+    <div class="section-title">Ruleaza agentul</div>
+    <div class="form-grid">
+      <select id="sector-sel">
+        {% for key, val in sectors.items() %}
+        <option value="{{ key }}">{{ val.label }}</option>
+        {% endfor %}
+      </select>
+      <select id="country-sel">
+        {% for code in countries %}
+        <option value="{{ code }}">{{ code }} — {{ country_names[code] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="runAction('run')" id="btn-run">
+        ▶ Run Complet
+      </button>
+      <button class="btn btn-secondary" onclick="runAction('discover')" id="btn-discover">
+        Cauta
+      </button>
+      <button class="btn btn-score" onclick="runAction('score')" id="btn-score">
+        Scor AI
+      </button>
+    </div>
+    <div id="log-box"></div>
+  </div>
+
+  <!-- Top leads preview -->
+  <div class="section">
+    <div class="section-title">Top leaduri (previzualizare)</div>
+    <div id="home-leads" style="padding:8px">
+      {% if leads %}
+        {% for lead in leads[:5] %}
+        {% set score = lead.total_score %}
+        {% set cls = 'hot' if score >= 8 else ('warm' if score >= 6 else 'cold') %}
+        <div class="lead-card {{ cls }}">
+          <div class="lead-header">
+            <div class="lead-name">{{ lead.company_name }}</div>
+            <div class="score-badge {{ cls }}">{{ "%.1f"|format(score) }}</div>
+          </div>
+          <div class="lead-meta">
+            <span class="tag">{{ lead.country }}</span>
+            <span class="tag sector">{{ lead.sector }}</span>
+            <span class="tag roles">{{ lead.open_roles_count }} roluri</span>
+          </div>
+          {% if lead.pitch_angle %}
+          <div class="lead-pitch">{{ lead.pitch_angle }}</div>
+          {% endif %}
+          {% if lead.recommended_contact %}
+          <div class="lead-contact">Contacteaza: {{ lead.recommended_contact }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% if leads|length > 5 %}
+        <div style="text-align:center;padding:8px;color:var(--dim);font-size:13px">
+          + {{ leads|length - 5 }} mai multe → apasa "Leaduri"
+        </div>
+        {% endif %}
+      {% else %}
+        <div class="empty-state">
+          <div class="icon">🔍</div>
+          <div>Niciun lead inca.<br>Apasa <strong>Run Complet</strong> pentru a incepe.</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- ── PAGE: Leaduri ── -->
+<div id="page-leads" class="page">
+  <div class="section" style="margin-top:12px">
+    <div class="section-title">Toate leadurile</div>
+    <div class="filter-bar">
+      <select id="f-country">
+        <option value="">Toate tarile</option>
+        {% for code in countries %}
+        <option value="{{ code }}">{{ code }}</option>
+        {% endfor %}
+      </select>
+      <select id="f-sector">
+        <option value="">Toate sectoarele</option>
+        {% for key, val in sectors.items() %}
+        <option value="{{ key }}">{{ val.label }}</option>
+        {% endfor %}
+      </select>
+      <select id="f-score">
+        <option value="0">Orice scor</option>
+        <option value="6">≥ 6 (Warm)</option>
+        <option value="8">≥ 8 (Hot)</option>
+      </select>
+      <button class="btn btn-secondary" onclick="loadLeads()">Filtreaza</button>
+    </div>
+    <div id="leads-container">
+      <div class="empty-state">
+        <div class="icon">📋</div>
+        <div>Incarca leadurile...</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding:0 12px 12px">
+    <a href="/export" style="display:block">
+      <button class="btn btn-export" style="width:100%">
+        ⬇ Exporta CSV
+      </button>
+    </a>
+  </div>
+</div>
+
+<!-- ── PAGE: Info ── -->
+<div id="page-info" class="page">
+  <div class="section" style="margin-top:12px">
+    <div class="section-title">Cum se foloseste</div>
+    <div style="padding:16px;line-height:1.7;font-size:14px">
+      <p><b>1. Run Complet</b> — Cel mai simplu. Agentul cauta companii, le scoreaza cu AI si salveaza totul. Selecteaza sectorul si tara inainte.</p>
+      <br>
+      <p><b>2. Cauta</b> — Cauta companii pe job board-uri (fara AI). Mai rapid si fara cost API.</p>
+      <br>
+      <p><b>3. Scor AI</b> — Scoreaza companiile gasite cu Claude AI. Ruleaza dupa "Cauta".</p>
+      <br>
+      <p><b>Export CSV</b> — Descarca toate leadurile intr-un fisier Excel-compatibil.</p>
+      <br>
+      <hr style="border-color:var(--border)"><br>
+      <p><b>Culori scoruri:</b></p>
+      <p style="color:var(--hot)">🔴 HOT (8+) — Contacteaza ACUM</p>
+      <p style="color:var(--warm)">🟡 WARM (6-8) — Prioritate mare</p>
+      <p style="color:var(--dim)">⚪ COLD (&lt;6) — De verificat</p>
+      <br>
+      <hr style="border-color:var(--border)"><br>
+      <p><b>Sectoare prioritare pentru cashflow:</b></p>
+      <ul style="padding-left:18px;margin-top:6px">
+        <li>Constructii (DE/AT/NL) — cel mai bine platit</li>
+        <li>Manufacturing (DE/AT) — sudori, CNC</li>
+        <li>Logistica (DE/NL) — volum mare</li>
+        <li>Agricultura (NL/BE) — sezonier</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ── Bottom nav ── -->
+<nav class="bottom-nav">
+  <div class="nav-item active" id="nav-home" onclick="showPage('home')">
+    <span class="icon">🏠</span>Dashboard
+  </div>
+  <div class="nav-item" id="nav-leads" onclick="showPage('leads')">
+    <span class="icon">📋</span>Leaduri
+  </div>
+  <div class="nav-item" id="nav-info" onclick="showPage('info')">
+    <span class="icon">ℹ️</span>Cum se foloseste
+  </div>
+</nav>
+
+<script>
+  // ── Page navigation ──────────────────────────────────────────
+  function showPage(name) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    document.getElementById('nav-' + name).classList.add('active');
+    if (name === 'leads') loadLeads();
+  }
+
+  // ── Action runner ─────────────────────────────────────────────
+  let _polling = null;
+
+  async function runAction(cmd) {
+    const sector  = document.getElementById('sector-sel').value;
+    const country = document.getElementById('country-sel').value;
+
+    const logBox = document.getElementById('log-box');
+    logBox.textContent = '';
+    logBox.classList.add('visible');
+
+    const allBtns = document.querySelectorAll('.btn');
+    allBtns.forEach(b => b.disabled = true);
+
+    const body = new FormData();
+    body.append('command', cmd);
+    if (sector)  body.append('sector', sector);
+    if (country) body.append('country', country);
+
+    const res = await fetch('/action', { method: 'POST', body });
+    const data = await res.json();
+
+    if (!data.ok) {
+      logBox.textContent = '⚠️ ' + data.msg;
+      allBtns.forEach(b => b.disabled = false);
+      return;
+    }
+
+    logBox.innerHTML = '<span class="spinner"></span>Agentul lucreaza...';
+    _polling = setInterval(pollStatus, 1500);
+  }
+
+  let _lastLogLen = 0;
+
+  async function pollStatus() {
+    try {
+      const res  = await fetch('/status');
+      const data = await res.json();
+      const logBox = document.getElementById('log-box');
+
+      if (data.log.length > _lastLogLen) {
+        const newLines = data.log.slice(_lastLogLen).join('\n');
+        _lastLogLen = data.log.length;
+        if (_lastLogLen === data.log.length) {
+          logBox.textContent = data.log.join('\n');
+        } else {
+          logBox.textContent += '\n' + newLines;
+        }
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+
+      if (data.done) {
+        clearInterval(_polling);
+        _polling = null;
+        _lastLogLen = 0;
+        document.querySelectorAll('.btn').forEach(b => b.disabled = false);
+
+        if (data.error) {
+          logBox.textContent += '\n\n[EROARE] ' + data.error;
+        } else {
+          logBox.textContent = data.log.join('\n') + '\n\n Gata! Reincarca pagina pentru statistici actualizate.';
+        }
+        // Refresh stats after a short delay
+        setTimeout(() => location.reload(), 2500);
+      }
+    } catch(e) {}
+  }
+
+  // ── Leads loader ──────────────────────────────────────────────
+  async function loadLeads() {
+    const country  = document.getElementById('f-country').value;
+    const sector   = document.getElementById('f-sector').value;
+    const minScore = document.getElementById('f-score').value;
+
+    let url = `/leads?min_score=${minScore}`;
+    if (country) url += `&country=${country}`;
+    if (sector)  url += `&sector=${sector}`;
+
+    const container = document.getElementById('leads-container');
+    container.innerHTML = '<div class="empty-state"><span class="spinner"></span> Se incarca...</div>';
+
+    const res  = await fetch(url);
+    const data = await res.json();
+
+    if (!data.leads || data.leads.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">📭</div>Niciun lead gasit cu aceste filtre.</div>';
+      return;
+    }
+
+    container.innerHTML = data.leads.map(lead => {
+      const score = lead.total_score;
+      const cls   = score >= 8 ? 'hot' : (score >= 6 ? 'warm' : 'cold');
+      const sectorLabel = lead.sector.charAt(0).toUpperCase() + lead.sector.slice(1);
+      return `
+        <div class="lead-card ${cls}">
+          <div class="lead-header">
+            <div class="lead-name">${lead.company_name}</div>
+            <div class="score-badge ${cls}">${score.toFixed(1)}</div>
+          </div>
+          <div class="lead-meta">
+            <span class="tag">${lead.country}</span>
+            <span class="tag sector">${sectorLabel}</span>
+            <span class="tag roles">${lead.open_roles_count} roluri</span>
+          </div>
+          ${lead.pitch_angle ? `<div class="lead-pitch">${lead.pitch_angle}</div>` : ''}
+          ${lead.recommended_contact ? `<div class="lead-contact">Contacteaza: ${lead.recommended_contact}</div>` : ''}
+          <div class="lead-scores">
+            <span>Urgenta <b>${lead.urgency_score.toFixed(1)}</b></span>
+            <span>Valoare <b>${lead.value_score.toFixed(1)}</b></span>
+            <span>Total <b>${score.toFixed(1)}</b></span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+</script>
+
+</body>
+</html>
